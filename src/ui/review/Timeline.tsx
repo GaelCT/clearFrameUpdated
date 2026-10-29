@@ -36,6 +36,11 @@ function ticksFor(duration: number, width: number): number[] {
   return ticks;
 }
 
+/** Which edge a timeline handle controls, read from its `data-edge` attribute. */
+function handleEdge(el: HTMLElement): 'start' | 'end' {
+  return el.dataset.edge === 'end' ? 'end' : 'start';
+}
+
 export function selectAndSeek(finding: Finding): void {
   selectFinding(finding.id);
   setInspectorTab('findings');
@@ -85,11 +90,13 @@ export function Timeline({ findings, duration }: { findings: Finding[]; duration
     scrubbing.current = false;
   };
 
-  const startDrag = (e: ReactPointerEvent<HTMLDivElement>, edge: 'start' | 'end', f: Finding) => {
+  const startDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const f = selected;
+    if (!f) return;
     e.stopPropagation();
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { edge, id: f.id, from: { startSec: f.startSec, endSec: f.endSec } };
+    drag.current = { edge: handleEdge(e.currentTarget), id: f.id, from: { startSec: f.startSec, endSec: f.endSec } };
   };
   const moveDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
     const g = drag.current;
@@ -106,9 +113,12 @@ export function Timeline({ findings, duration }: { findings: Finding[]; duration
     updateFindingInterval(g.id, selected.startSec, selected.endSec, g.from);
   };
 
-  const onHandleKey = (e: KeyboardEvent<HTMLDivElement>, edge: 'start' | 'end', f: Finding) => {
+  const onHandleKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const f = selected;
+    if (!f) return;
+    const edge = handleEdge(e.currentTarget);
     const step = e.shiftKey ? 1 : FRAME_STEP_SEC;
-    let delta = 0;
+    let delta: number;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') delta = -step;
     else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') delta = step;
     else return;
@@ -218,6 +228,7 @@ export function Timeline({ findings, duration }: { findings: Finding[]; duration
                   role="slider"
                   tabIndex={0}
                   className={`tl-handle tl-handle--${edge}`}
+                  data-edge={edge}
                   style={{ left: pct(t), top: 2 + lane * LANE_HEIGHT }}
                   aria-label={`${edge === 'start' ? 'Start' : 'End'} of selected finding`}
                   aria-valuemin={edge === 'start' ? 0 : selected.startSec}
@@ -226,11 +237,11 @@ export function Timeline({ findings, duration }: { findings: Finding[]; duration
                   aria-valuetext={formatTime(t)}
                   title={`Drag or use arrow keys to adjust the ${edge} (Shift for 1 s steps)`}
                   data-testid={`handle-${edge}`}
-                  onPointerDown={(e) => startDrag(e, edge, selected)}
+                  onPointerDown={startDrag}
                   onPointerMove={moveDrag}
                   onPointerUp={endDrag}
                   onPointerCancel={endDrag}
-                  onKeyDown={(e) => onHandleKey(e, edge, selected)}
+                  onKeyDown={onHandleKey}
                   onBlur={onHandleBlur}
                 />
               );
